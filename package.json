@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-gipas-mute",
-  "description": "GIPAS系统子插件，用于定时禁言管理",
+  "description": "Koishi最伟大的定时禁言插件",
   "version": "0.0.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -10,11 +10,16 @@
   ],
   "license": "MIT",
   "keywords": [
-    "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "mute",
+    "schedule",
+    "onebot"
   ],
   "peerDependencies": {
     "koishi": "^4.18.7"
+  },
+  "optionalDependencies": {
+    "chinese-days": "^1.5.4"
   }
 }
