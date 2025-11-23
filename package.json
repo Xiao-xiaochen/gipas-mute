@@ -14,8 +14,7 @@
     },
     "service": {
       "required": [
-        "database",
-        "cron"
+        "database"
       ]
     }
   },
