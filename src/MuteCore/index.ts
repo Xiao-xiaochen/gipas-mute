@@ -183,6 +183,20 @@ export class MuteCore {
       const dbState = await getMuteState(this.ctx, guildId);
       const currentIsMuted = dbState?.isMuted ?? null;
 
+      // 如果数据库没有记录，先同步一次当前状态（假设初始状态与期望状态一致）
+      if (currentIsMuted === null) {
+        logger.debug(
+          `[${guildId}] 数据库无记录，初始化状态为: ${expectedState.isMuted}`
+        );
+        await updateMuteState(
+          this.ctx,
+          guildId,
+          expectedState.isMuted,
+          expectedState.muteGroupName
+        );
+        return;
+      }
+
       // 检查是否需要更新
       if (currentIsMuted === expectedState.isMuted) {
         logger.debug(
