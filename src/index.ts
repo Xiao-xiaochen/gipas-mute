@@ -28,6 +28,8 @@ export const name = 'gipas-mute';
 export const usage = `
 # 定时禁言插件
 
+!!!我不知道怎么做动态schema，所有只能手动输入组名
+
 此插件80%由AI编写，经大量人工调试和完善，已稳定可用
 
 通过三层配置架构管理 QQ 群的定时禁言任务。
@@ -120,6 +122,7 @@ export async function apply(ctx: Context, config: GlobalConfig) {
   config.groupConfigs.forEach(gc => {
     if (!gc.guildId) gc.guildId = '0';
     if (gc.enableHoliday === null || gc.enableHoliday === undefined) gc.enableHoliday = true;
+    if (!gc.holidayMuteGroup) gc.holidayMuteGroup = 'default';
     if (!gc.compensationMuteGroup) gc.compensationMuteGroup = 'compensation';
     if (!gc.defaultWeekGroup) gc.defaultWeekGroup = 'default';
   });
@@ -127,11 +130,14 @@ export async function apply(ctx: Context, config: GlobalConfig) {
   // 保存当前配置
   currentConfig = config;
 
-  // 生成禁言组名称列表并注册为动态类型
+  // 生成禁言组名称列表和星期组名称列表
   const muteGroupNames = config.muteGroups.map(g => g.name);
   const weekGroupNames = config.weekGroups.map(g => g.name);
 
-  // 使用 ctx.schema.set() 注册动态类型
+  logger.info('插件已加载，当前禁言组:', muteGroupNames.join(', ') || '(无)');
+  logger.info('插件已加载，当前星期组:', weekGroupNames.join(', ') || '(无)');
+
+  // 注册动态类型供下拉菜单使用
   const muteGroupSchemaOptions = (muteGroupNames.length > 0
     ? muteGroupNames.map((name) => Schema.const(name).description(name))
     : [Schema.const('default').description('default')]) as Schema<string>[];

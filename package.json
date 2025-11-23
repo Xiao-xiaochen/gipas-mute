@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-gipas-mute",
   "description": "Koishi最伟大的定时禁言插件",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [

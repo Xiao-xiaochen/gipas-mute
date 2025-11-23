@@ -100,18 +100,26 @@ export class MuteCore {
     groupConfig: GroupConfig,
     holidayResult: HolidayCheckResult
   ): string {
-    // 如果启用了调休判断，且今天是调休工作日，使用补偿禁言组
-    if (
-      groupConfig.enableHoliday &&
-      holidayResult.isCompensationDay
-    ) {
-      logger.debug(
-        `[${groupConfig.guildId}] 检测到调休工作日 (${holidayResult.holidayName}), 使用补偿禁言组`
-      );
-      return groupConfig.compensationMuteGroup;
+    // 如果启用了调休判断
+    if (groupConfig.enableHoliday) {
+      // 优先检查是否是调休工作日
+      if (holidayResult.isCompensationDay) {
+        logger.debug(
+          `[${groupConfig.guildId}] 检测到调休工作日 (${holidayResult.holidayName}), 使用调休禁言组`
+        );
+        return groupConfig.compensationMuteGroup;
+      }
+
+      // 其次检查是否是节假日
+      if (holidayResult.isHoliday) {
+        logger.debug(
+          `[${groupConfig.guildId}] 检测到节假日 (${holidayResult.holidayName}), 使用节假日禁言组`
+        );
+        return groupConfig.holidayMuteGroup;
+      }
     }
 
-    // 否则根据星期获取禁言组
+    // 普通工作日/休息日，根据星期获取禁言组
     const weekGroup = this.getWeekGroup(groupConfig.defaultWeekGroup);
     if (!weekGroup) {
       logger.warn(`WeekGroup not found: ${groupConfig.defaultWeekGroup}`);

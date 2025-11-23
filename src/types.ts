@@ -60,6 +60,8 @@ export interface GroupConfig {
   guildId: string;
   /** 是否启用法定节假日/调休判断 */
   enableHoliday: boolean;
+  /** 当检测到节假日时使用的禁言组 ID */
+  holidayMuteGroup: string;
   /** 当检测到调休工作日时使用的禁言组 ID */
   compensationMuteGroup: string;
   /** 关联的星期组 ID */

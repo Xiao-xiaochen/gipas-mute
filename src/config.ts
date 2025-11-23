@@ -89,25 +89,25 @@ export function createConfigSchema(): Schema<GlobalConfig> {
           .required()
           .description('星期组 ID'),
         weekdays: Schema.object({
-          monday: Schema.dynamic('mute-group-names')
+          monday: Schema.string()
             .default('default')
             .description('周一'),
-          tuesday: Schema.dynamic('mute-group-names')
+          tuesday: Schema.string()
             .default('default')
             .description('周二'),
-          wednesday: Schema.dynamic('mute-group-names')
+          wednesday: Schema.string()
             .default('default')
             .description('周三'),
-          thursday: Schema.dynamic('mute-group-names')
+          thursday: Schema.string()
             .default('default')
             .description('周四'),
-          friday: Schema.dynamic('mute-group-names')
+          friday: Schema.string()
             .default('default')
             .description('周五'),
-          saturday: Schema.dynamic('mute-group-names')
+          saturday: Schema.string()
             .default('weekend')
             .description('周六'),
-          sunday: Schema.dynamic('mute-group-names')
+          sunday: Schema.string()
             .default('weekend')
             .description('周日'),
         }),
@@ -139,10 +139,13 @@ export function createConfigSchema(): Schema<GlobalConfig> {
         enableHoliday: Schema.boolean()
           .default(true)
           .description('启用调休判断'),
-        compensationMuteGroup: Schema.dynamic('mute-group-names')
+        holidayMuteGroup: Schema.string()
+          .default('default')
+          .description('节假日禁言组'),
+        compensationMuteGroup: Schema.string()
           .default('compensation')
           .description('调休禁言组'),
-        defaultWeekGroup: Schema.dynamic('week-group-names')
+        defaultWeekGroup: Schema.string()
           .default('default')
           .description('星期调度组'),
       })
@@ -153,13 +156,13 @@ export function createConfigSchema(): Schema<GlobalConfig> {
       .description('群组配置'),
 
     holidayMethod: Schema.union([
-      Schema.const('offline').description('离线 (npm 包)'),
+      Schema.const('offline').description('离线 (离线包)'),
       Schema.const('online').description('在线 (API)'),
-      Schema.const('hybrid').description('混合 (在线优先+缓存，失败回退离线)'),
+      Schema.const('hybrid').description('混合 (在线优先，失败退回)'),
     ])
       .default('hybrid')
       .description('节假日检查方法'),
-      
+
   });
 }
 
