@@ -1,3 +1,6 @@
+
+
+
 /**
  * Koishi 定时禁言插件 - 主入口
  * 
@@ -24,6 +27,8 @@ const logger = new Logger('gipas-mute');
 export const name = 'gipas-mute';
 export const usage = `
 # 定时禁言插件
+
+此插件80%由AI编写，经大量人工调试和完善，已稳定可用
 
 通过三层配置架构管理 QQ 群的定时禁言任务。
 
@@ -52,153 +57,11 @@ export const usage = `
 
 export const inject = ['database'];
 
-// 存储当前配置，用于初始化
+// 导出 schema 给 Koishi 使用（必须）
+export { schema } from './config';
+
+// 存储当前配置，用于动态类型更新
 let currentConfig: GlobalConfig | null = null;
-
-/**
- * 基础 Schema 定义（使用动态类型）
- * 动态类型会通过 ctx.schema.set() 在运行时更新
- */
-export const schema = Schema.object({
-  holidayMethod: Schema.union([
-    Schema.const('offline').description('离线 (npm 包)'),
-    Schema.const('online').description('在线 (API)'),
-  ])
-    .default('offline')
-    .description('节假日检查方法'),
-
-  muteGroups: Schema.array(
-    Schema.object({
-      name: Schema.string()
-        .required()
-        .description('禁言组 ID'),
-      rules: Schema.array(
-        Schema.object({
-          time: Schema.string()
-            .default('07:00')
-            .pattern(/^\d{2}:\d{2}$/)
-            .description('触发时间'),
-          isMuted: Schema.boolean()
-            .default(true)
-            .description('禁言'),
-        })
-      )
-        .role('table')
-        .default([
-          { time: '07:00', isMuted: true },
-          { time: '18:00', isMuted: false },
-        ])
-        .description('时间规则表'),
-      sendNotification: Schema.boolean()
-        .default(false)
-        .description('发送通知消息'),
-      message: Schema.string()
-        .default('群已禁言')
-        .max(100)
-        .description('通知消息'),
-    })
-  )
-    .collapse()
-    .default([
-      {
-        name: 'default',
-        sendNotification: false,
-        message: '群已禁言',
-        rules: [
-          { time: '07:00', isMuted: true },
-          { time: '18:00', isMuted: false },
-        ],
-      },
-      {
-        name: 'weekend',
-        sendNotification: false,
-        message: '周末禁言',
-        rules: [
-          { time: '08:00', isMuted: true },
-          { time: '22:00', isMuted: false },
-        ],
-      },
-      {
-        name: 'compensation',
-        sendNotification: false,
-        message: '调休工作日禁言',
-        rules: [
-          { time: '07:00', isMuted: true },
-          { time: '18:00', isMuted: false },
-        ],
-      },
-    ])
-    .description('禁言组定义'),
-
-  weekGroups: Schema.array(
-    Schema.object({
-      name: Schema.string()
-        .required()
-        .description('星期组 ID'),
-      weekdays: Schema.object({
-        monday: Schema.dynamic('mute-group-names')
-          .default('default')
-          .description('周一'),
-        tuesday: Schema.dynamic('mute-group-names')
-          .default('default')
-          .description('周二'),
-        wednesday: Schema.dynamic('mute-group-names')
-          .default('default')
-          .description('周三'),
-        thursday: Schema.dynamic('mute-group-names')
-          .default('default')
-          .description('周四'),
-        friday: Schema.dynamic('mute-group-names')
-          .default('default')
-          .description('周五'),
-        saturday: Schema.dynamic('mute-group-names')
-          .default('weekend')
-          .description('周六'),
-        sunday: Schema.dynamic('mute-group-names')
-          .default('weekend')
-          .description('周日'),
-      }),
-    })
-  )
-    .collapse()
-    .default([
-      {
-        name: 'default',
-        weekdays: {
-          monday: 'default',
-          tuesday: 'default',
-          wednesday: 'default',
-          thursday: 'default',
-          friday: 'default',
-          saturday: 'weekend',
-          sunday: 'weekend',
-        },
-      },
-    ])
-    .description('星期组定义'),
-
-  groupConfigs: Schema.array(
-    Schema.object({
-      guildId: Schema.string()
-        .required()
-        .pattern(/^\d+$/)
-        .description('QQ 群号'),
-      enableHoliday: Schema.boolean()
-        .default(true)
-        .description('启用调休判断'),
-      compensationMuteGroup: Schema.dynamic('mute-group-names')
-        .default('compensation')
-        .description('调休禁言组'),
-      defaultWeekGroup: Schema.dynamic('week-group-names')
-        .default('default')
-        .description('星期调度组'),
-    })
-  )
-    .collapse()
-    .role('table')
-    .default([])
-    .description('群组配置'),
-});
 
 /**
  * 插件主函数

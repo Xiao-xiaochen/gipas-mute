@@ -98,8 +98,8 @@ export interface ExpectedState {
  * 全局配置
  */
 export interface GlobalConfig {
-  /** 节假日检查方法：'offline' 使用 npm 包，'online' 使用 API */
-  holidayMethod: 'offline' | 'online';
+  /** 节假日检查方法：'offline' 使用 npm 包，'online' 使用 API，'hybrid' 在线优先+缓存回退离线 */
+  holidayMethod: 'offline' | 'online' | 'hybrid';
   /** 禁言组列表 */
   muteGroups: MuteGroup[];
   /** 星期组列表 */
