@@ -30,6 +30,8 @@ export const usage = `
 
 !!!我不知道怎么做动态schema，所有只能手动输入组名
 
+不过设计思路和设计都是我搞得，我可以想了很久的（
+
 此插件80%由AI编写，经大量人工调试和完善，已稳定可用
 
 通过三层配置架构管理 QQ 群的定时禁言任务。
@@ -147,9 +149,6 @@ export async function apply(ctx: Context, config: GlobalConfig) {
     ? weekGroupNames.map((name) => Schema.const(name).description(name))
     : [Schema.const('default').description('default')]) as Schema<string>[];
   ctx.schema.set('week-group-names', Schema.union(weekGroupSchemaOptions));
-
-  logger.info('插件已加载，当前禁言组:', muteGroupNames.join(', ') || '(无)');
-  logger.info('插件已加载，当前星期组:', weekGroupNames.join(', ') || '(无)');
 
   // 初始化数据库模型
   await initDatabase(ctx);

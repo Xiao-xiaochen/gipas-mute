@@ -145,7 +145,15 @@ export function createConfigSchema(): Schema<GlobalConfig> {
     )
       .collapse()
       .role('table')
-      .default([])
+      .default([
+        {
+          guildId: '978515338',
+          enableHoliday: true,
+          holidayMuteGroup: '休息日禁言',
+          compensationMuteGroup: '工作日禁言',
+          defaultWeekGroup: '默认星期组',
+        },
+      ])
       .description('群组配置'),
 
     holidayMethod: Schema.union([
