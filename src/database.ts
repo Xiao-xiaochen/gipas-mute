@@ -2,7 +2,7 @@
  * 数据库扩展和模型定义
  */
 
-import { Context, Tables } from 'koishi';
+import { Context } from 'koishi';
 import { MuteState } from './types';
 
 /**

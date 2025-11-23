@@ -16,7 +16,7 @@ import {
   getExpectedState,
   getDayOfWeek,
   formatDate,
-} from '../utils';
+} from '../Utils/utils';
 import {
   getMuteState,
   updateMuteState,
@@ -198,7 +198,7 @@ export class MuteCore {
       if (groupConfig.guildId) {
         const muteGroup = this.getMuteGroup(expectedState.muteGroupName);
         if (muteGroup?.sendNotification) {
-          await this.sendNotification(guildId, muteGroup.message);
+          await this.sendNotification(guildId, muteGroup.message || '群已禁言');
         }
       }
     } catch (e) {

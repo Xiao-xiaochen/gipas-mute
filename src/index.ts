@@ -132,17 +132,15 @@ export async function apply(ctx: Context, config: GlobalConfig) {
   const weekGroupNames = config.weekGroups.map(g => g.name);
 
   // 使用 ctx.schema.set() 注册动态类型
-  ctx.schema.set('mute-group-names', Schema.union(
-    muteGroupNames.length > 0
-      ? muteGroupNames.map((name) => Schema.const(name).description(name))
-      : [Schema.const('default').description('default')]
-  ));
+  const muteGroupSchemaOptions = (muteGroupNames.length > 0
+    ? muteGroupNames.map((name) => Schema.const(name).description(name))
+    : [Schema.const('default').description('default')]) as Schema<string>[];
+  ctx.schema.set('mute-group-names', Schema.union(muteGroupSchemaOptions));
 
-  ctx.schema.set('week-group-names', Schema.union(
-    weekGroupNames.length > 0
-      ? weekGroupNames.map((name) => Schema.const(name).description(name))
-      : [Schema.const('default').description('default')]
-  ));
+  const weekGroupSchemaOptions = (weekGroupNames.length > 0
+    ? weekGroupNames.map((name) => Schema.const(name).description(name))
+    : [Schema.const('default').description('default')]) as Schema<string>[];
+  ctx.schema.set('week-group-names', Schema.union(weekGroupSchemaOptions));
 
   logger.info('插件已加载，当前禁言组:', muteGroupNames.join(', ') || '(无)');
   logger.info('插件已加载，当前星期组:', weekGroupNames.join(', ') || '(无)');
@@ -172,17 +170,15 @@ export async function apply(ctx: Context, config: GlobalConfig) {
     const updatedMuteGroupNames = config.muteGroups.map(g => g.name);
     const updatedWeekGroupNames = config.weekGroups.map(g => g.name);
 
-    ctx.schema.set('mute-group-names', Schema.union(
-      updatedMuteGroupNames.length > 0
-        ? updatedMuteGroupNames.map((name) => Schema.const(name).description(name))
-        : [Schema.const('default').description('default')]
-    ));
+    const updatedMuteGroupSchemaOptions = (updatedMuteGroupNames.length > 0
+      ? updatedMuteGroupNames.map((name) => Schema.const(name).description(name))
+      : [Schema.const('default').description('default')]) as Schema<string>[];
+    ctx.schema.set('mute-group-names', Schema.union(updatedMuteGroupSchemaOptions));
 
-    ctx.schema.set('week-group-names', Schema.union(
-      updatedWeekGroupNames.length > 0
-        ? updatedWeekGroupNames.map((name) => Schema.const(name).description(name))
-        : [Schema.const('default').description('default')]
-    ));
+    const updatedWeekGroupSchemaOptions = (updatedWeekGroupNames.length > 0
+      ? updatedWeekGroupNames.map((name) => Schema.const(name).description(name))
+      : [Schema.const('default').description('default')]) as Schema<string>[];
+    ctx.schema.set('week-group-names', Schema.union(updatedWeekGroupSchemaOptions));
 
     muteCore.updateConfig(config);
     logger.info('配置已更新，当前禁言组:', updatedMuteGroupNames.join(', '));
