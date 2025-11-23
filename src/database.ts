@@ -63,24 +63,26 @@ export async function updateMuteState(
 ): Promise<MuteState> {
   const now = Date.now();
   
-  // 尝试更新，如果不存在则创建
-  const existing = await getMuteState(ctx, guildId);
-  
-  if (existing) {
-    // 更新现有记录
-    await ctx.database.set('mute_states', { guildId } as any, {
-      isMuted,
-      lastUpdated: now,
-      appliedMuteGroup,
-    });
-  } else {
-    // 创建新记录
-    await ctx.database.create('mute_states', {
-      guildId,
-      isMuted,
-      lastUpdated: now,
-      appliedMuteGroup,
-    } as any);
+  // 使用 upsert 模式：先尝试更新，如果没有行被更新则创建
+  const updateResult = await ctx.database.set('mute_states', { guildId } as any, {
+    isMuted,
+    lastUpdated: now,
+    appliedMuteGroup,
+  });
+
+  // 如果更新返回 null 或空数组，说明记录不存在，创建新记录
+  if (!updateResult) {
+    try {
+      await ctx.database.create('mute_states', {
+        guildId,
+        isMuted,
+        lastUpdated: now,
+        appliedMuteGroup,
+      } as any);
+    } catch (e) {
+      // 如果创建失败（可能是并发问题导致的重复），忽略错误
+      // 因为此时记录应该已经存在了
+    }
   }
 
   return {
