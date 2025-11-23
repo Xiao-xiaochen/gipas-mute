@@ -18,6 +18,10 @@ import {
   formatDate,
 } from '../Utils/utils';
 import {
+  setGroupMute,
+  sendGroupMessage,
+} from '../Utils/MuteCore';
+import {
   getMuteState,
   updateMuteState,
 } from '../database';
@@ -221,32 +225,7 @@ export class MuteCore {
     guildId: string,
     isMuted: boolean
   ): Promise<void> {
-    try {
-      // 获取机器人实例
-      const bot = this.ctx.bots.find((b) => b.platform === 'onebot');
-      if (!bot) {
-        logger.warn('OneBot bot not found');
-        return;
-      }
-
-      // 执行禁言或解禁
-      if (isMuted) {
-        // 使用 OneBot 的全体禁言接口
-        await bot.internal.set_group_whole_ban({
-          group_id: Number(guildId),
-          enable: true,
-        });
-      } else {
-        // 解除全体禁言
-        await bot.internal.set_group_whole_ban({
-          group_id: Number(guildId),
-          enable: false,
-        });
-      }
-    } catch (e) {
-      logger.error(`[${guildId}] Error executing group mute:`, e);
-      throw e;
-    }
+    await setGroupMute(this.ctx, guildId, isMuted);
   }
 
   /**
@@ -256,20 +235,7 @@ export class MuteCore {
     guildId: string,
     message: string
   ): Promise<void> {
-    try {
-      const bot = this.ctx.bots.find((b) => b.platform === 'onebot');
-      if (!bot) {
-        logger.warn('OneBot bot not found for notification');
-        return;
-      }
-
-      await bot.internal.send_group_msg({
-        group_id: Number(guildId),
-        message,
-      });
-    } catch (e) {
-      logger.error(`[${guildId}] Error sending notification:`, e);
-    }
+    await sendGroupMessage(this.ctx, guildId, message);
   }
 
   /**

@@ -26,7 +26,7 @@ const logger = new Logger('gipas-mute');
  */
 export const name = 'gipas-mute';
 export const usage = `
-# 定时禁言插件
+# GIPAS定时禁言插件
 
 !!!我不知道怎么做动态schema，所有只能手动输入组名
 
