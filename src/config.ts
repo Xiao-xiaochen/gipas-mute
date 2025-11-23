@@ -54,30 +54,23 @@ export function createConfigSchema(): Schema<GlobalConfig> {
       .collapse()
       .default([
         {
-          name: 'default',
-          sendNotification: false,
-          message: '群已禁言',
+          name: '工作日禁言',
+          sendNotification: true,
+          message: '开始工作日禁言',
           rules: [
-            { time: '07:00', isMuted: true },
-            { time: '18:00', isMuted: false },
+            { time: '05:00', isMuted: false },
+            { time: '07:15', isMuted: true },
+            { time: '16:30', isMuted: false },
+            { time: '00:00', isMuted: true },
           ],
         },
         {
-          name: 'weekend',
-          sendNotification: false,
-          message: '周末禁言',
+          name: '休息日禁言',
+          sendNotification: true,
+          message: '开始休息日禁言',
           rules: [
-            { time: '08:00', isMuted: true },
-            { time: '22:00', isMuted: false },
-          ],
-        },
-        {
-          name: 'compensation',
-          sendNotification: false,
-          message: '调休工作日禁言',
-          rules: [
-            { time: '07:00', isMuted: true },
-            { time: '18:00', isMuted: false },
+            { time: '05:00', isMuted: false },
+            { time: '00:00', isMuted: true },
           ],
         },
       ])
@@ -116,15 +109,15 @@ export function createConfigSchema(): Schema<GlobalConfig> {
       .collapse()
       .default([
         {
-          name: 'default',
+          name: '默认星期组',
           weekdays: {
-            monday: 'default',
-            tuesday: 'default',
-            wednesday: 'default',
-            thursday: 'default',
-            friday: 'default',
-            saturday: 'weekend',
-            sunday: 'weekend',
+            monday: '工作日禁言',
+            tuesday: '工作日禁言',
+            wednesday: '工作日禁言',
+            thursday: '工作日禁言',
+            friday: '工作日禁言',
+            saturday: '休息日禁言',
+            sunday: '休息日禁言',
           },
         },
       ])

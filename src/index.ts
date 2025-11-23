@@ -93,24 +93,24 @@ export async function apply(ctx: Context, config: GlobalConfig) {
     if (!wg.name) wg.name = 'unnamed_week_group';
     if (!wg.weekdays) {
       wg.weekdays = {
-        monday: 'default',
-        tuesday: 'default',
-        wednesday: 'default',
-        thursday: 'default',
-        friday: 'default',
-        saturday: 'weekend',
-        sunday: 'weekend',
+        monday: '工作日禁言',
+        tuesday: '工作日禁言',
+        wednesday: '工作日禁言',
+        thursday: '工作日禁言',
+        friday: '工作日禁言',
+        saturday: '休息日禁言',
+        sunday: '休息日禁言',
       };
     }
     // 填充缺失的星期配置
     const defaultWeekdays = {
-      monday: 'default',
-      tuesday: 'default',
-      wednesday: 'default',
-      thursday: 'default',
-      friday: 'default',
-      saturday: 'weekend',
-      sunday: 'weekend',
+      monday: '工作日禁言',
+      tuesday: '工作日禁言',
+      wednesday: '工作日禁言',
+      thursday: '工作日禁言',
+      friday: '工作日禁言',
+      saturday: '休息日禁言',
+      sunday: '休息日禁言',
     };
     Object.keys(defaultWeekdays).forEach(day => {
       if (!wg.weekdays[day as keyof typeof wg.weekdays]) {
@@ -122,9 +122,9 @@ export async function apply(ctx: Context, config: GlobalConfig) {
   config.groupConfigs.forEach(gc => {
     if (!gc.guildId) gc.guildId = '0';
     if (gc.enableHoliday === null || gc.enableHoliday === undefined) gc.enableHoliday = true;
-    if (!gc.holidayMuteGroup) gc.holidayMuteGroup = 'default';
-    if (!gc.compensationMuteGroup) gc.compensationMuteGroup = 'compensation';
-    if (!gc.defaultWeekGroup) gc.defaultWeekGroup = 'default';
+    if (!gc.holidayMuteGroup) gc.holidayMuteGroup = '休息日禁言';
+    if (!gc.compensationMuteGroup) gc.compensationMuteGroup = '工作日禁言';
+    if (!gc.defaultWeekGroup) gc.defaultWeekGroup = '默认星期组';
   });
 
   // 保存当前配置

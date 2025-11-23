@@ -1,14 +1,33 @@
 {
   "name": "koishi-plugin-gipas-mute",
-  "description": "Koishi最伟大的定时禁言插件",
-  "version": "1.0.1",
+  "version": "1.2.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
     "lib",
     "dist"
   ],
+  "koishi": {
+    "description": {
+      "en": "Koishi's most NB ScheduledMute plugin",
+      "zh": "Koishi最伟大，灵活的定时禁言插件"
+    },
+    "service": {
+      "required": [
+        "database",
+        "cron"
+      ]
+    }
+  },
+  "contributors": [
+    "Xiao-xiaochen <xiaochen18217@gmail.com>"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/Xiao-xiaochen/gipas-mute.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xiao-xiaochen/gipas-mute.git"
+  },
   "keywords": [
     "koishi",
     "plugin",
