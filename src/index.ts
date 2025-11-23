@@ -9,13 +9,14 @@
  * 3. 插件自动每分钟检查一次状态并自动纠正
  */
 
-import { Context, Logger } from 'koishi';
+import { Context, Logger, Schema } from 'koishi';
 import { MuteCore } from './MuteCore';
 import { initDatabase } from './database';
-import { ConfigSchema } from './schema';
 import { GlobalConfig } from './types';
 
 const logger = new Logger('gipas-mute');
+
+
 
 /**
  * 插件导出
@@ -50,13 +51,238 @@ export const usage = `
 `;
 
 export const inject = ['database'];
-export const schema = ConfigSchema;
+
+// 存储当前配置，用于初始化
+let currentConfig: GlobalConfig | null = null;
+
+/**
+ * 基础 Schema 定义（使用动态类型）
+ * 动态类型会通过 ctx.schema.set() 在运行时更新
+ */
+export const schema = Schema.object({
+  holidayMethod: Schema.union([
+    Schema.const('offline').description('离线 (npm 包)'),
+    Schema.const('online').description('在线 (API)'),
+  ])
+    .default('offline')
+    .description('节假日检查方法'),
+
+  muteGroups: Schema.array(
+    Schema.object({
+      name: Schema.string()
+        .required()
+        .description('禁言组 ID'),
+      rules: Schema.array(
+        Schema.object({
+          time: Schema.string()
+            .default('07:00')
+            .pattern(/^\d{2}:\d{2}$/)
+            .description('触发时间'),
+          isMuted: Schema.boolean()
+            .default(true)
+            .description('禁言'),
+        })
+      )
+        .role('table')
+        .default([
+          { time: '07:00', isMuted: true },
+          { time: '18:00', isMuted: false },
+        ])
+        .description('时间规则表'),
+      sendNotification: Schema.boolean()
+        .default(false)
+        .description('发送通知消息'),
+      message: Schema.string()
+        .default('群已禁言')
+        .max(100)
+        .description('通知消息'),
+    })
+  )
+    .collapse()
+    .default([
+      {
+        name: 'default',
+        sendNotification: false,
+        message: '群已禁言',
+        rules: [
+          { time: '07:00', isMuted: true },
+          { time: '18:00', isMuted: false },
+        ],
+      },
+      {
+        name: 'weekend',
+        sendNotification: false,
+        message: '周末禁言',
+        rules: [
+          { time: '08:00', isMuted: true },
+          { time: '22:00', isMuted: false },
+        ],
+      },
+      {
+        name: 'compensation',
+        sendNotification: false,
+        message: '调休工作日禁言',
+        rules: [
+          { time: '07:00', isMuted: true },
+          { time: '18:00', isMuted: false },
+        ],
+      },
+    ])
+    .description('禁言组定义'),
+
+  weekGroups: Schema.array(
+    Schema.object({
+      name: Schema.string()
+        .required()
+        .description('星期组 ID'),
+      weekdays: Schema.object({
+        monday: Schema.dynamic('mute-group-names')
+          .default('default')
+          .description('周一'),
+        tuesday: Schema.dynamic('mute-group-names')
+          .default('default')
+          .description('周二'),
+        wednesday: Schema.dynamic('mute-group-names')
+          .default('default')
+          .description('周三'),
+        thursday: Schema.dynamic('mute-group-names')
+          .default('default')
+          .description('周四'),
+        friday: Schema.dynamic('mute-group-names')
+          .default('default')
+          .description('周五'),
+        saturday: Schema.dynamic('mute-group-names')
+          .default('weekend')
+          .description('周六'),
+        sunday: Schema.dynamic('mute-group-names')
+          .default('weekend')
+          .description('周日'),
+      }),
+    })
+  )
+    .collapse()
+    .default([
+      {
+        name: 'default',
+        weekdays: {
+          monday: 'default',
+          tuesday: 'default',
+          wednesday: 'default',
+          thursday: 'default',
+          friday: 'default',
+          saturday: 'weekend',
+          sunday: 'weekend',
+        },
+      },
+    ])
+    .description('星期组定义'),
+
+  groupConfigs: Schema.array(
+    Schema.object({
+      guildId: Schema.string()
+        .required()
+        .pattern(/^\d+$/)
+        .description('QQ 群号'),
+      enableHoliday: Schema.boolean()
+        .default(true)
+        .description('启用调休判断'),
+      compensationMuteGroup: Schema.dynamic('mute-group-names')
+        .default('compensation')
+        .description('调休禁言组'),
+      defaultWeekGroup: Schema.dynamic('week-group-names')
+        .default('default')
+        .description('星期调度组'),
+    })
+  )
+    .collapse()
+    .role('table')
+    .default([])
+    .description('群组配置'),
+});
 
 /**
  * 插件主函数
  */
 export async function apply(ctx: Context, config: GlobalConfig) {
-  logger.info('插件已加载');
+  // 确保配置对象有必要的字段
+  if (!config.muteGroups) config.muteGroups = [];
+  if (!config.weekGroups) config.weekGroups = [];
+  if (!config.groupConfigs) config.groupConfigs = [];
+
+  // 数据清理和验证：填充缺失的字段
+  config.muteGroups.forEach(mg => {
+    if (!mg.name) mg.name = 'unnamed_group';
+    if (!mg.rules) mg.rules = [];
+    if (mg.sendNotification === null || mg.sendNotification === undefined) mg.sendNotification = false;
+    if (!mg.message) mg.message = '群已禁言';
+    
+    // 确保每条规则都有 isMuted 字段
+    mg.rules.forEach(rule => {
+      if (rule.isMuted === null || rule.isMuted === undefined) {
+        rule.isMuted = true;
+      }
+    });
+  });
+
+  config.weekGroups.forEach(wg => {
+    if (!wg.name) wg.name = 'unnamed_week_group';
+    if (!wg.weekdays) {
+      wg.weekdays = {
+        monday: 'default',
+        tuesday: 'default',
+        wednesday: 'default',
+        thursday: 'default',
+        friday: 'default',
+        saturday: 'weekend',
+        sunday: 'weekend',
+      };
+    }
+    // 填充缺失的星期配置
+    const defaultWeekdays = {
+      monday: 'default',
+      tuesday: 'default',
+      wednesday: 'default',
+      thursday: 'default',
+      friday: 'default',
+      saturday: 'weekend',
+      sunday: 'weekend',
+    };
+    Object.keys(defaultWeekdays).forEach(day => {
+      if (!wg.weekdays[day as keyof typeof wg.weekdays]) {
+        wg.weekdays[day as keyof typeof wg.weekdays] = defaultWeekdays[day as keyof typeof defaultWeekdays];
+      }
+    });
+  });
+
+  config.groupConfigs.forEach(gc => {
+    if (!gc.guildId) gc.guildId = '0';
+    if (gc.enableHoliday === null || gc.enableHoliday === undefined) gc.enableHoliday = true;
+    if (!gc.compensationMuteGroup) gc.compensationMuteGroup = 'compensation';
+    if (!gc.defaultWeekGroup) gc.defaultWeekGroup = 'default';
+  });
+
+  // 保存当前配置
+  currentConfig = config;
+
+  // 生成禁言组名称列表并注册为动态类型
+  const muteGroupNames = config.muteGroups.map(g => g.name);
+  const weekGroupNames = config.weekGroups.map(g => g.name);
+
+  // 使用 ctx.schema.set() 注册动态类型
+  ctx.schema.set('mute-group-names', Schema.union(
+    muteGroupNames.length > 0
+      ? muteGroupNames.map((name) => Schema.const(name).description(name))
+      : [Schema.const('default').description('default')]
+  ));
+
+  ctx.schema.set('week-group-names', Schema.union(
+    weekGroupNames.length > 0
+      ? weekGroupNames.map((name) => Schema.const(name).description(name))
+      : [Schema.const('default').description('default')]
+  ));
+
+  logger.info('插件已加载，当前禁言组:', muteGroupNames.join(', ') || '(无)');
+  logger.info('插件已加载，当前星期组:', weekGroupNames.join(', ') || '(无)');
 
   // 初始化数据库模型
   await initDatabase(ctx);
@@ -75,9 +301,34 @@ export async function apply(ctx: Context, config: GlobalConfig) {
 
   logger.info('心跳循环已启动 (每 60 秒执行一次)');
 
+  // 当配置更新时，更新全局 currentConfig、动态类型和 MuteCore 的配置
+  ctx.on('config', () => {
+    currentConfig = config;
+    
+    // 重新生成并更新动态类型
+    const updatedMuteGroupNames = config.muteGroups.map(g => g.name);
+    const updatedWeekGroupNames = config.weekGroups.map(g => g.name);
+
+    ctx.schema.set('mute-group-names', Schema.union(
+      updatedMuteGroupNames.length > 0
+        ? updatedMuteGroupNames.map((name) => Schema.const(name).description(name))
+        : [Schema.const('default').description('default')]
+    ));
+
+    ctx.schema.set('week-group-names', Schema.union(
+      updatedWeekGroupNames.length > 0
+        ? updatedWeekGroupNames.map((name) => Schema.const(name).description(name))
+        : [Schema.const('default').description('default')]
+    ));
+
+    muteCore.updateConfig(config);
+    logger.info('配置已更新，当前禁言组:', updatedMuteGroupNames.join(', '));
+  });
+
   // 插件卸载时清理定时器
   ctx.on('dispose', () => {
     clearInterval(heartbeatInterval);
+    currentConfig = null;
     logger.info('插件已卸载，定时器已清理');
   });
 
