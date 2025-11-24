@@ -6,21 +6,17 @@ import { checkHoliday, formatDate } from './utils';
 
 type TestMode = 'auto' | 'mute' | 'unmute' | 'state';
 
-/**
- * 注册测试命令，方便在 Koishi 控制台中手动触发禁言流程
- * 指令：gipas.test <guildId> [mode]
- * mode:
- *  - auto (默认)：触发 MuteCore.checkGroupNow
- *  - mute / unmute：直接设置整群禁言/解禁
- *  - state：查看数据库记录
- */
 export function registerMuteTestCommand(ctx: Context, muteCore: MuteCore): void {
-  ctx
-    .command('gipas.test <guildId:string> [mode:string]', '测试禁言逻辑', { authority: 3 })
+  const root = ctx
+    .command('gipas.mute', 'GIPAS 禁言调试工具', { authority: 2 })
+    .usage('gipas.mute test <群号> [mode] / gipas.mute holiday <日期>');
+
+  root
+    .subcommand('.test <guildId:string> [mode:string]', '测试单群禁言逻辑')
     .option('message', '-m <text:string>')
     .action(async ({ session, options }, guildId, mode = 'auto') => {
       if (!guildId) {
-        return '请提供群号，例如：gipas.test 123456 auto';
+        return '请提供群号，例如：gipas.mute test 123456 auto';
       }
 
       const normalizedMode = (mode.toLowerCase() as TestMode) || 'auto';
@@ -62,13 +58,13 @@ export function registerMuteTestCommand(ctx: Context, muteCore: MuteCore): void 
       }
     });
 
-  ctx
-    .command('gipas.holiday <date:string>', '测试节假日检测', { authority: 3 })
+  root
+    .subcommand('.holiday <date:string>', '测试节假日在线/离线检测')
     .option('method', '-m <method:string>', { fallback: 'both' })
     .usage('默认同时测试 online/offline，可用 -m online/offline/hybrid 指定单项')
     .action(async (_, date, method = 'both') => {
       if (!date) {
-        return '请提供日期，例如：gipas.holiday 2024-05-01';
+        return '请提供日期，例如：gipas.mute holiday 2024-05-01';
       }
 
       const targetDate = new Date(date);

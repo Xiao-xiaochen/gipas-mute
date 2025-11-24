@@ -131,7 +131,7 @@ export function createConfigSchema(): Schema<GlobalConfig> {
           .description('QQ 群号'),
         enableHoliday: Schema.boolean()
           .default(true)
-          .description('启用调休判断'),
+          .description('调休判断'),
         holidayMuteGroup: Schema.string()
           .default('default')
           .description('节假日禁言组'),
