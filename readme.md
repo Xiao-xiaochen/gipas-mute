@@ -2,7 +2,10 @@
 
 [![npm](https://img.shields.io/npm/v/koishi-plugin-gipas-mute?style=flat-square)](https://www.npmjs.com/package/koishi-plugin-gipas-mute)
 
-基于 Koishi 框架的 QQ 群定时禁言管理插件。采用**三层配置架构**，支持**法定节假日识别**，即使机器人重启也能自动纠正禁言状态。
+基于 Koishi 框架的 QQ 群定时禁言管理插件。采用**三层配置架构**，支持**法定节假日识别**，即使意外重启也能自动纠正禁言状态。
+
+GIPAS(Group Information Procesing Automatic System)
+GIPAS官方Q群群号: 1071284605
 
 ## ✨ 核心功能
 

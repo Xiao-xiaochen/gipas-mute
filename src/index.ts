@@ -29,6 +29,10 @@ export const name = 'gipas-mute';
 export const usage = `
 # GIPAS定时禁言插件
 
+GIPAS(Group Information Procesing Automatic System)
+
+GIPAS官方Q群群号: 1071284605
+
 !!!我不知道怎么做动态schema，所有只能手动输入组名
 
 不过设计思路和设计都是我搞得，我可以想了很久的（
