@@ -16,6 +16,7 @@ import { Context, Logger, Schema } from 'koishi';
 import { MuteCore } from './MuteCore';
 import { initDatabase } from './database';
 import { GlobalConfig } from './types';
+import { registerMuteTestCommand } from './Utils/test';
 
 const logger = new Logger('gipas-mute');
 
@@ -156,6 +157,7 @@ export async function apply(ctx: Context, config: GlobalConfig) {
 
   // 创建核心业务逻辑实例
   const muteCore = new MuteCore(ctx, config);
+  registerMuteTestCommand(ctx, muteCore);
 
   // 注册心跳循环 - 每分钟执行一次
   // 使用定时器每 60 秒检查一次状态

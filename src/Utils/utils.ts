@@ -13,6 +13,16 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000;
 // 缓存时间戳，key: YYYY-MM-DD，value: 缓存时间
 const cacheTimestamp = new Map<string, number>();
 
+// 在线节假日 API（按年返回）的缓存
+type OnlineHolidayDay = {
+  name?: string;
+  date: string;
+  isOffDay: boolean;
+};
+
+const onlineYearCache = new Map<number, { fetchedAt: number; days: OnlineHolidayDay[] }>();
+const ONLINE_YEAR_CACHE_DURATION = 12 * 60 * 60 * 1000;
+
 /**
  * 尝试加载 chinese-days 包进行离线节假日检查
  */
@@ -23,6 +33,58 @@ function loadChineseDaysOffline(): any {
   } catch (e) {
     return null;
   }
+}
+
+async function fetchHolidayYearFromApi(
+  year: number,
+  signal?: AbortSignal
+): Promise<OnlineHolidayDay[]> {
+  const cached = onlineYearCache.get(year);
+  if (cached && Date.now() - cached.fetchedAt < ONLINE_YEAR_CACHE_DURATION) {
+    return cached.days;
+  }
+
+  const response = await fetch(`https://holiday.cyi.me/api/holidays?year=${year}`, {
+    signal,
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'gipas-mute/1.0',
+    },
+  });
+
+  const rawBody = await response.text();
+
+  if (!response.ok) {
+    const snippet = rawBody.slice(0, 120);
+    throw new Error(`API 返回错误: ${response.status} ${snippet}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch (parseErr) {
+    const snippet = rawBody.slice(0, 120);
+    throw new Error(`API 返回非 JSON 响应: ${snippet}`);
+  }
+
+  if (!Array.isArray(data?.days)) {
+    throw new Error('API 数据格式异常: 缺少 days');
+  }
+
+  const normalized: OnlineHolidayDay[] = data.days
+    .filter((item: any) => typeof item?.date === 'string')
+    .map((item: any) => ({
+      date: item.date,
+      name: typeof item.name === 'string' ? item.name : undefined,
+      isOffDay: Boolean(item.isOffDay),
+    }));
+
+  onlineYearCache.set(year, {
+    fetchedAt: Date.now(),
+    days: normalized,
+  });
+
+  return normalized;
 }
 
 /**
@@ -85,30 +147,46 @@ async function checkHolidayHybrid(date: Date): Promise<HolidayCheckResult> {
  */
 function checkHolidayOffline(date: Date): HolidayCheckResult {
   try {
-    const chineseDays = loadChineseDaysOffline();
-    if (!chineseDays) {
-      // 如果 chinese-days 未安装，返回默认值
+    const chineseDaysModule = loadChineseDaysOffline();
+    if (!chineseDaysModule) {
       return {
         isHoliday: false,
         isCompensationDay: false,
       };
     }
 
-    // chinese-days 的 API 通常是：
-    // festival(date) 返回节假日信息或 null
-    const result = chineseDays.festival(date);
+    // 支持 CommonJS 与 ESM 默认导出
+    const chineseDays = (chineseDaysModule.default ?? chineseDaysModule) as any;
 
-    if (result) {
-      return {
-        isHoliday: true,
-        isCompensationDay: result.type === 'workingDay' || result.type === 'compensationDay',
-        holidayName: result.name,
-      };
+    const isHolidayFn = typeof chineseDays?.isHoliday === 'function'
+      ? chineseDays.isHoliday.bind(chineseDays)
+      : null;
+    const isInLieuFn = typeof chineseDays?.isInLieu === 'function'
+      ? chineseDays.isInLieu.bind(chineseDays)
+      : null;
+    const getDayDetailFn = typeof chineseDays?.getDayDetail === 'function'
+      ? chineseDays.getDayDetail.bind(chineseDays)
+      : null;
+
+    if (!isHolidayFn || !isInLieuFn) {
+      throw new Error('chinese-days 缺少 isHoliday/isInLieu 方法');
+    }
+
+    const isHoliday = Boolean(isHolidayFn(date));
+    const isCompensationDay = Boolean(isInLieuFn(date));
+
+    let holidayName: string | undefined;
+    if (getDayDetailFn) {
+      const detail = getDayDetailFn(date);
+      if (detail && detail.name && !detail.work) {
+        holidayName = detail.name;
+      }
     }
 
     return {
-      isHoliday: false,
-      isCompensationDay: false,
+      isHoliday,
+      isCompensationDay,
+      holidayName,
     };
   } catch (e) {
     console.error('[gipas-mute] 离线调休检查失败:', e);
@@ -120,57 +198,47 @@ function checkHolidayOffline(date: Date): HolidayCheckResult {
 }
 
 /**
- * 在线节假日检查 (使用公开 API: https://holiday.cyi.me/)
- * API 文档: https://holiday.cyi.me/#api-demo
+ * 在线节假日检查 (使用公开 API: https://holiday.cyi.me/api/holidays)
  */
 async function checkHolidayOnline(date: Date): Promise<HolidayCheckResult> {
   try {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = formatDate(date);
 
-    // 使用公开的节假日 API
-    // API 返回格式: { code: 0, holiday: { ... } 或 null }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
     try {
-      const response = await fetch(`https://holiday.cyi.me/rest/query?d=${dateStr}`, {
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`API 返回错误: ${response.status}`);
+      const candidateYears = new Set<number>([year]);
+      // 涉及跨年补班/调休时，下一年的数据可能包含上一年的日期，反之亦然
+      if (date.getMonth() === 11) {
+        candidateYears.add(year + 1);
+      }
+      if (date.getMonth() === 0) {
+        candidateYears.add(year - 1);
       }
 
-      const data = await response.json() as any;
-
-      // API 返回 code 0 表示成功
-      if (data.code !== 0) {
-        throw new Error(`API 返回错误代码: ${data.code}`);
+      for (const candidateYear of candidateYears) {
+        if (candidateYear <= 0) {
+          continue;
+        }
+        const days = await fetchHolidayYearFromApi(
+          candidateYear,
+          controller.signal
+        );
+        const match = days.find((day) => day.date === dateStr);
+        if (match) {
+          return {
+            isHoliday: match.isOffDay,
+            isCompensationDay: !match.isOffDay,
+            holidayName: match.name,
+          };
+        }
       }
 
-      // 如果没有 holiday 数据，说明是普通工作日
-      if (!data.holiday) {
-        return {
-          isHoliday: false,
-          isCompensationDay: false,
-        };
-      }
-
-      const holiday = data.holiday;
-
-      // holiday.type 说明:
-      // - 0: 普通工作日
-      // - 1: 节假日（中国传统节假日）
-      // - 2: 调休工作日（原来是休息日，现在要工作）
-      // - 3: 假期内的正常休息日
-      
       return {
-        isHoliday: holiday.type === 1 || holiday.type === 3,
-        isCompensationDay: holiday.type === 2,
-        holidayName: holiday.name,
+        isHoliday: false,
+        isCompensationDay: false,
       };
     } finally {
       clearTimeout(timeout);
