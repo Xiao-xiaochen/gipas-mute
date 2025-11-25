@@ -183,26 +183,24 @@ export class MuteCore {
       const dbState = await getMuteState(this.ctx, guildId);
       const currentIsMuted = dbState?.isMuted ?? null;
 
-      // 如果数据库没有记录，先同步一次当前状态（假设初始状态与期望状态一致）
-      if (currentIsMuted === null) {
-        logger.debug(
-          `[${guildId}] 数据库无记录，初始化状态为: ${expectedState.isMuted}`
-        );
-        await updateMuteState(
-          this.ctx,
-          guildId,
-          expectedState.isMuted,
-          expectedState.muteGroupName
-        );
-        return;
-      }
+      const needInitialSync = currentIsMuted === null;
+      const needUpdate = currentIsMuted !== expectedState.isMuted;
 
-      // 检查是否需要更新
-      if (currentIsMuted === expectedState.isMuted) {
+      if (!needInitialSync && !needUpdate) {
         logger.debug(
           `[${guildId}] 状态已对齐，无需更新 (isMuted: ${expectedState.isMuted})`
         );
         return;
+      }
+
+      if (needInitialSync) {
+        logger.info(
+          `[${guildId}] 首次建立禁言状态，目标: ${expectedState.isMuted ? '禁言' : '解禁'}`
+        );
+      } else {
+        logger.info(
+          `[${guildId}] 状态变更: ${currentIsMuted} -> ${expectedState.isMuted} (规则: ${expectedState.muteGroupName})`
+        );
       }
 
       // 调用 OneBot API 执行禁言/解禁
@@ -216,16 +214,10 @@ export class MuteCore {
         expectedState.muteGroupName
       );
 
-      logger.info(
-        `[${guildId}] 禁言状态已更新: ${expectedState.isMuted ? '禁言' : '解禁'} (规则: ${expectedState.muteGroupName})`
-      );
-
-      // 发送通知消息
-      if (groupConfig.guildId) {
-        const muteGroup = this.getMuteGroup(expectedState.muteGroupName);
-        if (muteGroup?.sendNotification) {
-          await this.sendNotification(guildId, muteGroup.message || '群已禁言');
-        }
+      // 发送通知消息（仅在配置开启时）
+      const muteGroup = this.getMuteGroup(expectedState.muteGroupName);
+      if (groupConfig.guildId && muteGroup?.sendNotification) {
+        await this.sendNotification(guildId, muteGroup.message || '群已禁言');    
       }
     } catch (e) {
       logger.error(`[${guildId}] Error reconciling mute state:`, e);

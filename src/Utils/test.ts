@@ -94,4 +94,18 @@ export function registerMuteTestCommand(ctx: Context, muteCore: MuteCore): void 
 
       return results.join('\n');
     });
+
+  root
+    .subcommand('.cron', '手动触发一次定时禁言心跳循环')
+    .action(async () => {
+      try {
+        const start = Date.now();
+        await muteCore.run();
+        const duration = Date.now() - start;
+        return `已执行一次心跳循环，耗时 ${duration}ms`;
+      } catch (err) {
+        ctx.logger('gipas-mute').error('[测试命令] 心跳循环触发失败:', err);
+        return `心跳循环执行失败：${(err as Error).message}`;
+      }
+    });
 }

@@ -64,7 +64,7 @@ export async function sendGroupMessage(
     }
 
     // 调用 OneBot API 发送群消息
-    await bot.internal.send_group_msg(numericGuildId, message);
+    await bot.internal.sendGroupMsg(numericGuildId, message);
 
     logger.debug(`[发送群消息] 群 ${guildId} 消息发送成功`);
   } catch (error) {
