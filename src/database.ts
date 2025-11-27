@@ -19,16 +19,12 @@ declare module 'koishi' {
  * @param ctx Koishi 上下文
  */
 export async function initDatabase(ctx: Context): Promise<void> {
-  // 定义 mute_states 表
   ctx.model.extend('mute_states', {
-    // 主键：群号
     guildId: 'string',
-    // 当前禁言状态
     isMuted: 'boolean',
-    // 最后更新时间戳
     lastUpdated: 'unsigned',
-    // 应用的禁言组名称
     appliedMuteGroup: 'string',
+    id: 'unsigned',
   }, {
     primary: 'guildId',
   });
@@ -62,27 +58,20 @@ export async function updateMuteState(
   appliedMuteGroup: string
 ): Promise<MuteState> {
   const now = Date.now();
-  
-  // 使用 upsert 模式：先尝试更新，如果没有行被更新则创建
-  const updateResult = await ctx.database.set('mute_states', { guildId } as any, {
-    isMuted,
-    lastUpdated: now,
-    appliedMuteGroup,
-  });
-
-  // 如果更新返回 null 或空数组，说明记录不存在，创建新记录
-  if (!updateResult) {
-    try {
-      await ctx.database.create('mute_states', {
-        guildId,
-        isMuted,
-        lastUpdated: now,
-        appliedMuteGroup,
-      } as any);
-    } catch (e) {
-      // 如果创建失败（可能是并发问题导致的重复），忽略错误
-      // 因为此时记录应该已经存在了
-    }
+  const exist = await ctx.database.get('mute_states', { guildId } as any);
+  if (exist && exist.length > 0) {
+    await ctx.database.set('mute_states', { guildId } as any, {
+      isMuted,
+      lastUpdated: now,
+      appliedMuteGroup,
+    });
+  } else {
+    await ctx.database.create('mute_states', {
+      guildId,
+      isMuted,
+      lastUpdated: now,
+      appliedMuteGroup,
+    } as any);
   }
 
   return {

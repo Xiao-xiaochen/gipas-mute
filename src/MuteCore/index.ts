@@ -39,6 +39,7 @@ export class MuteCore {
   private muteGroupMap: Map<string, MuteGroup> = new Map();
   private weekGroupMap: Map<string, WeekGroup> = new Map();
   private groupConfigMap: Map<string, GroupConfig> = new Map();
+  private runtimeStateMap: Map<string, boolean> = new Map();
 
   constructor(ctx: Context, config: GlobalConfig) {
     this.ctx = ctx;
@@ -79,14 +80,26 @@ export class MuteCore {
    * 获取指定名称的禁言组
    */
   private getMuteGroup(name: string): MuteGroup | null {
-    return this.muteGroupMap.get(name) ?? null;
+    const exact = this.muteGroupMap.get(name);
+    if (exact) return exact;
+    const trimmed = typeof name === 'string' ? name.trim() : name;
+    if (trimmed && trimmed !== name) {
+      return this.muteGroupMap.get(trimmed) ?? null;
+    }
+    return null;
   }
 
   /**
    * 获取指定名称的星期组
    */
   private getWeekGroup(name: string): WeekGroup | null {
-    return this.weekGroupMap.get(name) ?? null;
+    const exact = this.weekGroupMap.get(name);
+    if (exact) return exact;
+    const trimmed = typeof name === 'string' ? name.trim() : name;
+    if (trimmed && trimmed !== name) {
+      return this.weekGroupMap.get(trimmed) ?? null;
+    }
+    return null;
   }
 
   /**
@@ -124,16 +137,24 @@ export class MuteCore {
     }
 
     // 普通工作日/休息日，根据星期获取禁言组
+    const dayOfWeek = getDayOfWeek(date);
     const weekGroup = this.getWeekGroup(groupConfig.defaultWeekGroup);
     if (!weekGroup) {
-      logger.warn(`WeekGroup not found: ${groupConfig.defaultWeekGroup}`);
-      return 'default'; // 降级到默认禁言组
+      logger.warn(`WeekGroup not found: "${groupConfig.defaultWeekGroup}"`);
+      const fallbackWork = this.getMuteGroup('工作日禁言')?.name;
+      const fallbackRest = this.getMuteGroup('休息日禁言')?.name;
+      const isWeekend = dayOfWeek === 'saturday' || dayOfWeek === 'sunday';
+      const candidate = isWeekend ? fallbackRest : fallbackWork;
+      if (candidate) return candidate;
+      const first = this.config.muteGroups[0]?.name;
+      return first ?? 'default';
     }
 
-    const dayOfWeek = getDayOfWeek(date);
-    const muteGroupName = weekGroup.weekdays[dayOfWeek];
-
-    return muteGroupName || 'default';
+    const rawName = weekGroup.weekdays[dayOfWeek];
+    const muteGroupName = typeof rawName === 'string' ? rawName.trim() : rawName;
+    return muteGroupName || (dayOfWeek === 'saturday' || dayOfWeek === 'sunday'
+      ? (this.getMuteGroup('休息日禁言')?.name ?? this.config.muteGroups[0]?.name ?? 'default')
+      : (this.getMuteGroup('工作日禁言')?.name ?? this.config.muteGroups[0]?.name ?? 'default'));
   }
 
   /**
@@ -152,10 +173,17 @@ export class MuteCore {
         holidayResult
       );
 
-      const muteGroup = this.getMuteGroup(muteGroupName);
+      let muteGroup = this.getMuteGroup(muteGroupName);
       if (!muteGroup) {
-        logger.warn(`MuteGroup not found: ${muteGroupName}`);
-        return null;
+        logger.warn(`MuteGroup not found: "${muteGroupName}"`);
+        const dayOfWeek = getDayOfWeek(now);
+        const isWeekend = dayOfWeek === 'saturday' || dayOfWeek === 'sunday';
+        const fallbackName = isWeekend
+          ? (this.getMuteGroup('休息日禁言')?.name ?? this.config.muteGroups[0]?.name)
+          : (this.getMuteGroup('工作日禁言')?.name ?? this.config.muteGroups[0]?.name);
+        if (!fallbackName) return null;
+        muteGroup = this.getMuteGroup(fallbackName)!;
+        logger.info(`Using fallback mute group: ${fallbackName}`);
       }
 
       // 计算期望状态
@@ -177,11 +205,12 @@ export class MuteCore {
     guildId: string,
     groupConfig: GroupConfig,
     expectedState: ExpectedState
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       // 获取数据库中的当前状态
       const dbState = await getMuteState(this.ctx, guildId);
-      const currentIsMuted = dbState?.isMuted ?? null;
+      const runtimeIsMuted = this.runtimeStateMap.get(guildId);
+      const currentIsMuted = (dbState?.isMuted ?? runtimeIsMuted ?? null) as boolean | null;
 
       const needInitialSync = currentIsMuted === null;
       const needUpdate = currentIsMuted !== expectedState.isMuted;
@@ -190,7 +219,7 @@ export class MuteCore {
         logger.debug(
           `[${guildId}] 状态已对齐，无需更新 (isMuted: ${expectedState.isMuted})`
         );
-        return;
+        return true;
       }
 
       if (needInitialSync) {
@@ -214,13 +243,17 @@ export class MuteCore {
         expectedState.muteGroupName
       );
 
+      this.runtimeStateMap.set(guildId, expectedState.isMuted);
+
       // 发送通知消息（仅在配置开启时）
       const muteGroup = this.getMuteGroup(expectedState.muteGroupName);
       if (groupConfig.guildId && muteGroup?.sendNotification) {
         await this.sendNotification(guildId, muteGroup.message || '群已禁言');    
       }
+      return true;
     } catch (e) {
       logger.error(`[${guildId}] Error reconciling mute state:`, e);
+      return false;
     }
   }
 
@@ -262,25 +295,33 @@ export class MuteCore {
         );
 
         // 计算期望状态
-        const expectedState = this.computeExpectedState(
-          now,
-          groupConfig,
-          holidayResult
+      const expectedState = this.computeExpectedState(
+        now,
+        groupConfig,
+        holidayResult
+      );
+
+      if (!expectedState) {
+        logger.warn(
+          `[${groupConfig.guildId}] 无法计算期望状态，跳过`
         );
+        continue;
+      }
 
-        if (!expectedState) {
-          logger.warn(
-            `[${groupConfig.guildId}] 无法计算期望状态，跳过`
-          );
-          continue;
-        }
+      logger.debug(
+        `[${groupConfig.guildId}] 期望状态: ${expectedState.isMuted ? '禁言' : '解禁'} ` +
+        `(组: ${expectedState.muteGroupName}, 触发: ${expectedState.triggerTime}, 前日回溯: ${expectedState.isFromPreviousDay})`
+      );
 
-        // 执行状态对齐
-        await this.reconcileMuteState(
+      // 执行状态对齐
+        const ok = await this.reconcileMuteState(
           groupConfig.guildId,
           groupConfig,
           expectedState
         );
+        if (!ok) {
+          logger.warn(`[${groupConfig.guildId}] 本轮状态对齐失败`);
+        }
       } catch (e) {
         logger.error(
           `[${groupConfig.guildId}] Error in heartbeat loop:`,
@@ -330,8 +371,14 @@ export class MuteCore {
         };
       }
 
-      // 执行对齐
-      await this.reconcileMuteState(guildId, groupConfig, expectedState);
+      const ok = await this.reconcileMuteState(guildId, groupConfig, expectedState);
+      if (!ok) {
+        return {
+          success: false,
+          message: `本次对齐失败`,
+          expectedState,
+        };
+      }
 
       return {
         success: true,
@@ -344,6 +391,35 @@ export class MuteCore {
         success: false,
         message: `错误: ${String(e)}`,
       };
+    }
+  }
+
+  public async previewGroupNow(guildId: string): Promise<{
+    success: boolean;
+    message: string;
+    expectedState?: ExpectedState;
+  }> {
+    try {
+      const groupConfig = this.getGroupConfig(guildId);
+      if (!groupConfig) {
+        return { success: false, message: `群 ${guildId} 未配置` };
+      }
+
+      const now = new Date();
+      const holidayResult = await checkHoliday(now, this.config.holidayMethod);
+      const expectedState = this.computeExpectedState(now, groupConfig, holidayResult);
+      if (!expectedState) {
+        return { success: false, message: `无法计算期望状态` };
+      }
+
+      return {
+        success: true,
+        message: `预览完成: ${expectedState.isMuted ? '禁言' : '解禁'}`,
+        expectedState,
+      };
+    } catch (e) {
+      logger.error(`[${guildId}] Error previewing group:`, e);
+      return { success: false, message: `错误: ${String(e)}` };
     }
   }
 }

@@ -14,29 +14,36 @@ export async function setGroupMute(
   guildId: string,
   enable: boolean
 ): Promise<void> {
-  try {
-    // 获取 OneBot bot 实例
-    const bot = ctx.bots.find((b) => b.platform === 'onebot');
-    if (!bot) {
-      logger.warn('[设置群禁言] OneBot 未找到');
-      return;
-    }
-
-    const numericGuildId = Number(guildId);
-    if (isNaN(numericGuildId)) {
-      logger.warn(`[设置群禁言] 无效的群号: ${guildId}`);
-      return;
-    }
-
-    await bot.internal.setGroupWholeBan(numericGuildId, enable);
-
-    logger.debug(
-      `[设置群禁言] 群 ${guildId} ${enable ? '禁言' : '解禁'}成功`
-    );
-  } catch (error) {
-    logger.error(`[设置群禁言] 设置群 ${guildId} 禁言失败:`, error);
-    throw error;
+  const numericGuildId = Number(guildId);
+  if (isNaN(numericGuildId)) {
+    logger.warn(`[设置群禁言] 无效的群号: ${guildId}`);
+    return;
   }
+
+  const bots = ctx.bots.filter((b) => b.platform === 'onebot');
+  if (!bots.length) {
+    logger.warn('[设置群禁言] OneBot 未找到');
+    return;
+  }
+
+  let lastError: any = null;
+  for (const bot of bots) {
+    try {
+      await bot.internal.setGroupWholeBan(numericGuildId, enable);
+      logger.debug(
+        `[设置群禁言] 群 ${guildId} 使用 bot(${bot.sid || bot.selfId || 'unknown'}) ${enable ? '禁言' : '解禁'}成功`
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      logger.debug(
+        `[设置群禁言] bot(${(bot as any).sid || bot.selfId || 'unknown'}) 调用失败，尝试下一个。`
+      );
+    }
+  }
+
+  logger.error(`[设置群禁言] 所有 OneBot 尝试均失败，群 ${guildId} 未${enable ? '禁言' : '解禁'}:`, lastError);
+  throw lastError ?? new Error('setGroupWholeBan failed');
 }
 
 /**
@@ -50,25 +57,30 @@ export async function sendGroupMessage(
   guildId: string,
   message: string
 ): Promise<void> {
-  try {
-    const bot = ctx.bots.find((b) => b.platform === 'onebot');
-    if (!bot) {
-      logger.warn('[发送群消息] OneBot bot 未找到');
-      return;
-    }
-
-    const numericGuildId = Number(guildId);
-    if (isNaN(numericGuildId)) {
-      logger.warn(`[发送群消息] 无效的群号: ${guildId}`);
-      return;
-    }
-
-    // 调用 OneBot API 发送群消息
-    await bot.internal.sendGroupMsg(numericGuildId, message);
-
-    logger.debug(`[发送群消息] 群 ${guildId} 消息发送成功`);
-  } catch (error) {
-    logger.error(`[发送群消息] 群 ${guildId} 消息发送失败:`, error);
-    throw error;
+  const numericGuildId = Number(guildId);
+  if (isNaN(numericGuildId)) {
+    logger.warn(`[发送群消息] 无效的群号: ${guildId}`);
+    return;
   }
+
+  const bots = ctx.bots.filter((b) => b.platform === 'onebot');
+  if (!bots.length) {
+    logger.warn('[发送群消息] OneBot bot 未找到');
+    return;
+  }
+
+  let lastError: any = null;
+  for (const bot of bots) {
+    try {
+      await bot.internal.sendGroupMsg(numericGuildId, message);
+      logger.debug(`[发送群消息] 群 ${guildId} 使用 bot(${bot.sid || bot.selfId || 'unknown'}) 消息发送成功`);
+      return;
+    } catch (error) {
+      lastError = error;
+      logger.debug(`[发送群消息] bot(${(bot as any).sid || bot.selfId || 'unknown'}) 调用失败，尝试下一个。`);
+    }
+  }
+
+  logger.error(`[发送群消息] 所有 OneBot 尝试均失败，群 ${guildId} 消息未发送:`, lastError);
+  throw lastError ?? new Error('sendGroupMsg failed');
 }

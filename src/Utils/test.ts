@@ -108,4 +108,14 @@ export function registerMuteTestCommand(ctx: Context, muteCore: MuteCore): void 
         return `心跳循环执行失败：${(err as Error).message}`;
       }
     });
+
+  root
+    .subcommand('.explain <guildId:string>', '解释当前为何是禁言/解禁')
+    .action(async (_, guildId) => {
+      if (!guildId) return '请提供群号，例如：gipas.mute explain 123456';
+      const result = await muteCore.previewGroupNow(guildId);
+      if (!result.success || !result.expectedState) return `失败：${result.message}`;
+      const s = result.expectedState;
+      return `组=${s.muteGroupName} 状态=${s.isMuted ? '禁言' : '解禁'} 触发=${s.triggerTime} 前日回溯=${s.isFromPreviousDay ? '是' : '否'}`;
+    });
 }
